@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="ArchFlow — SVG architecture diagram transition viewer">
+  <title>ArchFlow — SVG Transition Viewer</title>
+
+  <!-- Typography: Syne (display/headings) + DM Sans (UI body) + Space Mono (labels/code) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Export libraries (synchronous — must be globals before deferred JS) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+  <script type="module">
+    import * as gifenc from 'https://cdn.jsdelivr.net/npm/gifenc@1.0.3/src/index.js';
+    window.gifenc = gifenc;
+  </script>
+
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- Animated mesh background -->
+  <div id="bg-mesh" aria-hidden="true"></div>
+
+  <!-- Top mode bar -->
+  <header id="mode-bar" role="banner">
+    <div id="app-logo">
+      <span class="logo-icon">⬡</span>
+      <span class="logo-text">ArchFlow</span>
+    </div>
+    <div id="mode-toggle-group" role="group" aria-label="Application mode">
+      <button id="btn-edit-mode" class="mode-btn active" aria-pressed="true">
+        <span class="btn-icon">✏️</span> Edit
+      </button>
+      <button id="btn-play-mode" class="mode-btn" aria-pressed="false">
+        <span class="btn-icon">▶</span> Play
+      </button>
+    </div>
+    <div id="header-actions">
+      <button id="btn-new-architecture" class="action-btn action-btn--new"
+              aria-label="Create new architecture project">
+        <span class="action-btn-icon">⊕</span> New
+      </button>
+      <div class="header-action-divider" role="separator" aria-hidden="true"></div>
+      <button id="btn-load-config" class="action-btn" aria-label="Load configuration file">Load Config</button>
+      <button id="btn-export-config" class="action-btn accent" aria-label="Export configuration file">Export Config</button>
+      <input type="file" id="config-file-input" accept=".json" style="display:none" aria-hidden="true">
+      <div class="header-action-divider" role="separator" aria-hidden="true"></div>
+      <button id="btn-export-pptx" class="action-btn" aria-label="Export all states as PowerPoint presentation">
+        <span aria-hidden="true">⬇</span> PPTX
+      </button>
+      <button id="btn-export-pdf" class="action-btn" aria-label="Export all states as PDF document">
+        <span aria-hidden="true">⬇</span> PDF
+      </button>
+      <button id="btn-export-gif" class="action-btn" aria-label="Export all states as animated GIF">
+        <span aria-hidden="true">⬇</span> GIF
+      </button>
+    </div>
+  </header>
+
+  <!-- Main canvas area -->
+  <main id="canvas-container" aria-label="SVG diagram canvas">
+    <!-- Empty state -->
+    <div id="empty-state" role="status">
+      <div class="empty-icon">⬡</div>
+      <h2 class="empty-title">No diagram loaded</h2>
+      <p class="empty-subtitle">Upload an SVG file to begin</p>
+      <label for="svg-file-input" class="upload-cta" role="button" tabindex="0">
+        <span>Choose SVG File</span>
+      </label>
+      <input type="file" id="svg-file-input" accept=".svg" aria-label="Upload SVG diagram file">
+    </div>
+    <!-- SVG renders here -->
+    <div id="svg-host" aria-label="Diagram display area"></div>
+  </main>
+
+  <!-- Edit mode toolbar (floating bottom strip when SVG loaded) -->
+  <div id="edit-toolbar" class="floating-toolbar" role="toolbar" aria-label="Edit tools" hidden>
+    <label for="svg-file-input-toolbar" class="tool-btn" title="Replace SVG">
+      <span>📁</span><span class="tool-label">SVG</span>
+      <input type="file" id="svg-file-input-toolbar" accept=".svg" aria-label="Replace SVG diagram" style="display:none">
+    </label>
+    <button id="btn-add-state" class="tool-btn" title="Add new transition state" aria-label="Add transition state">
+      <span>＋</span><span class="tool-label">State</span>
+    </button>
+    <div class="tool-separator" role="separator"></div>
+    <label class="tool-btn tool-label-inline" for="transition-duration" title="Transition duration">
+      <span>⏱</span>
+      <input type="range" id="transition-duration" min="100" max="3000" step="100" value="600"
+             aria-label="Transition duration in milliseconds">
+      <span id="duration-display" class="tool-label">600ms</span>
+    </label>
+    <div class="tool-separator" role="separator"></div>
+    <button id="btn-annotate" class="tool-btn" title="Add annotation to this stage"
+            aria-label="Add annotation" aria-pressed="false">
+      <span>✎</span><span class="tool-label">Annotate</span>
+    </button>
+  </div>
+
+  <!-- State tabs strip (floating, above playback) -->
+  <div id="state-tabs" class="state-tabs-container" role="tablist" aria-label="Transition states" hidden></div>
+
+  <!-- Playback bar (Play mode only) -->
+  <div id="playback-bar" class="playback-bar" role="toolbar" aria-label="Playback controls" hidden>
+    <button id="btn-prev" class="pb-btn" aria-label="Previous state">&#9664;</button>
+    <button id="btn-play-pause" class="pb-btn pb-primary" aria-label="Play">&#9654;</button>
+    <button id="btn-next" class="pb-btn" aria-label="Next state">&#9654;&#9654;</button>
+    <div id="pb-counter" aria-live="polite" aria-label="State counter">— / —</div>
+    <div id="pb-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div id="pb-progress-fill"></div>
+    </div>
+  </div>
+
+  <!-- Zoom controls widget (shown when SVG is loaded) -->
+  <div id="zoom-widget" role="toolbar" aria-label="Zoom controls" hidden>
+    <button id="btn-zoom-out" class="zoom-btn" aria-label="Zoom out" title="Zoom out">−</button>
+    <span id="zoom-level-display" aria-label="Current zoom level">100%</span>
+    <button id="btn-zoom-in" class="zoom-btn" aria-label="Zoom in" title="Zoom in">+</button>
+    <div class="zoom-separator" role="separator" aria-hidden="true"></div>
+    <button id="btn-zoom-reset" class="zoom-btn zoom-btn--reset" aria-label="Reset zoom to fit" title="Reset zoom to fit">⊡</button>
+  </div>
+
+  <!-- Floating panels (rendered by JS) -->
+  <div id="panels-host" aria-label="Floating panels"></div>
+
+  <!-- Keyboard shortcut tooltip -->
+  <div id="shortcut-tooltip" class="shortcut-tooltip" role="tooltip" aria-hidden="true" hidden>
+    <h3>Keyboard Shortcuts</h3>
+    <dl>
+      <dt>E</dt><dd>Edit mode</dd>
+      <dt>P</dt><dd>Play mode</dd>
+      <dt>Space</dt><dd>Play / Pause</dd>
+      <dt>→</dt><dd>Next state</dd>
+      <dt>←</dt><dd>Previous state</dd>
+      <dt>?</dt><dd>Toggle this panel</dd>
+    </dl>
+  </div>
+
+  <!-- New Architecture confirmation modal -->
+  <div id="reset-modal-backdrop" class="modal-backdrop" hidden aria-hidden="true">
+    <div id="reset-modal" class="modal-panel glass-panel" role="dialog"
+         aria-modal="true" aria-labelledby="reset-modal-title"
+         aria-describedby="reset-modal-desc">
+      <div class="modal-icon" aria-hidden="true">⊕</div>
+      <h2 id="reset-modal-title" class="modal-title">New Architecture</h2>
+      <p id="reset-modal-desc" class="modal-desc">
+        This will clear the current diagram and all transition states. Any unsaved changes will be lost.
+      </p>
+      <div class="modal-actions">
+        <button id="btn-reset-cancel" class="modal-btn modal-btn--cancel">Cancel</button>
+        <button id="btn-reset-confirm" class="modal-btn modal-btn--confirm">Start Fresh</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Export progress modal -->
+  <div id="export-modal-backdrop" class="modal-backdrop" hidden aria-hidden="true">
+    <div id="export-modal" class="modal-panel glass-panel" role="dialog"
+         aria-modal="true" aria-labelledby="export-modal-label">
+      <div class="modal-icon export-modal-icon" aria-hidden="true">⬇</div>
+      <h2 id="export-modal-label" class="modal-title">Exporting…</h2>
+      <div id="export-progress-track" class="export-progress-track" role="progressbar"
+           aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
+           aria-label="Export progress">
+        <div id="export-progress-fill" class="export-progress-fill"></div>
+      </div>
+      <div id="export-progress-counter" class="export-progress-counter" aria-live="polite">0 / 0</div>
+    </div>
+  </div>
+
+  <!-- GIF export settings modal -->
+  <div id="gif-settings-modal-backdrop" class="modal-backdrop" hidden aria-hidden="true">
+    <div id="gif-settings-modal" class="modal-panel glass-panel" role="dialog"
+         aria-modal="true" aria-labelledby="gif-settings-title">
+      <div class="modal-icon" aria-hidden="true">⬇</div>
+      <h2 id="gif-settings-title" class="modal-title">Export GIF</h2>
+      <p class="modal-desc">Configure the animated GIF output, then click Export GIF to render.</p>
+      <div id="gif-settings-form">
+        <div>
+          <label for="gif-fps">Frames per second</label>
+          <select id="gif-fps">
+            <option value="5">5 fps</option>
+            <option value="10">10 fps</option>
+            <option value="12" selected>12 fps</option>
+            <option value="15">15 fps</option>
+            <option value="24">24 fps</option>
+          </select>
+        </div>
+        <div>
+          <label for="gif-hold-ms">Hold duration (ms)</label>
+          <input type="number" id="gif-hold-ms" value="500" min="0" max="5000" step="100">
+        </div>
+        <div>
+          <label for="gif-loop">Loop</label>
+          <select id="gif-loop">
+            <option value="0" selected>Infinite</option>
+            <option value="-1">Once</option>
+            <option value="3">3×</option>
+          </select>
+        </div>
+        <div>
+          <label for="gif-scale">Scale</label>
+          <select id="gif-scale">
+            <option value="0.5">0.5×</option>
+            <option value="1" selected>1×</option>
+            <option value="2">2×</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button id="gif-cancel-btn" class="modal-btn modal-btn--secondary">Cancel</button>
+        <button id="gif-export-btn" class="modal-btn modal-btn--primary">Export GIF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JS modules — deferred in dependency order, no ES module CORS issues for file:// -->
+  <script src="js/app.js" defer></script>
+  <script src="js/svgLoader.js" defer></script>
+  <script src="js/zoom.js" defer></script>
+  <script src="js/svgParser.js" defer></script>
+  <script src="js/draggable.js" defer></script>
+  <script src="js/shapeListPanel.js" defer></script>
+  <script src="js/propertyEditor.js" defer></script>
+  <script src="js/stateManager.js" defer></script>
+  <script src="js/annotationLayer.js" defer></script>
+  <script src="js/annotationEditor.js" defer></script>
+  <script src="js/persist.js" defer></script>
+  <script src="js/playback.js" defer></script>
+  <script src="js/exportManager.js" defer></script>
+  <script src="js/gifExport.js" defer></script>
+
+</body>
+</html>
