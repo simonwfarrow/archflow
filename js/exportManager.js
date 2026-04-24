@@ -76,6 +76,8 @@
    * @returns {{ width: number, height: number }}
    */
   function resolveSVGDimensions(svgEl) {
+    if (!svgEl) return { width: 800, height: 600 };
+
     const viewBoxAttr = svgEl.getAttribute('viewBox');
     if (viewBoxAttr) {
       const parts = viewBoxAttr.trim().split(/[\s,]+/).map(Number);
@@ -593,6 +595,23 @@
     const pptx    = new PptxGenJS();
     pptx.layout   = 'LAYOUT_WIDE';
 
+    // ── Resolve SVG dimensions for letterbox placement ────────────────────────
+    // LAYOUT_WIDE is 13.33" × 7.5". Scale the SVG uniformly to fit inside the
+    // slide on whichever axis constrains more (scale-to-fit), then centre the
+    // result so it is letterboxed (landscape SVG) or pillarboxed (portrait SVG).
+    const SLIDE_W_IN = 13.33;  // LAYOUT_WIDE width in inches
+    const SLIDE_H_IN = 7.5;    // LAYOUT_WIDE height in inches
+
+    const svgHost = document.getElementById('svg-host');
+    const liveSvg = svgHost ? svgHost.querySelector('svg') : null;
+    const svgDims = resolveSVGDimensions(liveSvg);
+
+    const scale  = Math.min(SLIDE_W_IN / svgDims.width, SLIDE_H_IN / svgDims.height);
+    const imgW   = svgDims.width  * scale;
+    const imgH   = svgDims.height * scale;
+    const imgX   = (SLIDE_W_IN - imgW) / 2;
+    const imgY   = (SLIDE_H_IN - imgH) / 2;
+
     const total = transitions.length;
 
     for (let i = 0; i < total; i++) {
@@ -600,7 +619,7 @@
       const pngDataUrl = await renderStateToPNG(transition.id);
 
       const slide = pptx.addSlide();
-      slide.addImage({ data: pngDataUrl, x: 0, y: 0, w: '100%', h: '100%' });
+      slide.addImage({ data: pngDataUrl, x: imgX, y: imgY, w: imgW, h: imgH });
 
       updateExportProgress(i + 1, total);
       await yieldToUI();
@@ -637,7 +656,7 @@
     // Resolve SVG dimensions to set page orientation and format
     const svgHost    = document.getElementById('svg-host');
     const liveSvg    = svgHost ? svgHost.querySelector('svg') : null;
-    const svgDims    = liveSvg ? resolveSVGDimensions(liveSvg) : { width: 800, height: 600 };
+    const svgDims    = resolveSVGDimensions(liveSvg);
     const isLandscape = svgDims.width > svgDims.height;
 
     const jsPDF = window.jspdf.jsPDF;
