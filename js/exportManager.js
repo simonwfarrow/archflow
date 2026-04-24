@@ -861,7 +861,7 @@
       return;
     }
 
-    const allExportButtons = [btnExportPptx, btnExportPdf, document.getElementById('btn-export-gif')].filter(Boolean);
+    const allExportButtons = [btnExportPptx, btnExportPdf, document.getElementById('btn-export-gif'), document.getElementById('btn-export-png-zip')].filter(Boolean);
 
     /** Disable all export buttons to prevent concurrent exports. */
     function disableExportButtons() {

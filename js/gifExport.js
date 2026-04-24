@@ -1214,6 +1214,7 @@
       btnExportGif,
       document.getElementById('btn-export-pdf'),
       document.getElementById('btn-export-pptx'),
+      document.getElementById('btn-export-png-zip'),
     ].filter(Boolean);
 
     function disableAllExportButtons() {

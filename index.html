@@ -15,6 +15,7 @@
   <!-- Export libraries (synchronous — must be globals before deferred JS) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script type="module">
     import * as gifenc from 'https://cdn.jsdelivr.net/npm/gifenc@1.0.3/src/index.js';
     window.gifenc = gifenc;
@@ -59,6 +60,9 @@
       </button>
       <button id="btn-export-gif" class="action-btn" aria-label="Export all states as animated GIF">
         <span aria-hidden="true">⬇</span> GIF
+      </button>
+      <button id="btn-export-png-zip" class="action-btn" aria-label="Export all states as PNG images in a ZIP archive">
+        <span aria-hidden="true">⬇</span> PNG ZIP
       </button>
     </div>
   </header>
@@ -234,6 +238,7 @@
   <script src="js/playback.js" defer></script>
   <script src="js/exportManager.js" defer></script>
   <script src="js/gifExport.js" defer></script>
+  <script src="js/pngZipExport.js" defer></script>
 
 </body>
 </html>

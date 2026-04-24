@@ -1424,7 +1424,9 @@ body:not(.svg-loaded) #zoom-widget {
 
 /* Export buttons are disabled while an export is in progress */
 #btn-export-pptx:disabled,
-#btn-export-pdf:disabled {
+#btn-export-pdf:disabled,
+#btn-export-gif:disabled,
+#btn-export-png-zip:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
